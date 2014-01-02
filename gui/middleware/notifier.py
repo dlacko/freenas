@@ -3362,16 +3362,17 @@ class notifier:
         zvols = filter(lambda y: y != '', zfsproc.communicate()[0].split('\n'))
 
         if path:
-            zfsproc = self._pipeopen("/sbin/zfs list -r -t snapshot -H -S creation %s" % path)
+            zfsproc = self._pipeopen("/sbin/zfs list -r -t snapshot -H -S creation -o name,used,refer,freenas:expire %s" % path)
         else:
-            zfsproc = self._pipeopen("/sbin/zfs list -t snapshot -H -S creation")
+            zfsproc = self._pipeopen("/sbin/zfs list -t snapshot -H -S creation -o name,used,refer,freenas:expire")
         lines = zfsproc.communicate()[0].split('\n')
         for line in lines:
             if line != '':
                 list = line.split('\t')
                 snapname = list[0]
                 used = list[1]
-                refer = list[3]
+                refer = list[2]
+                expire = list[3]
                 fs, name = snapname.split('@')
                 try:
                     snaplist = fsinfo[fs]
@@ -3385,6 +3386,7 @@ class notifier:
                         filesystem=fs,
                         used=used,
                         refer=refer,
+                        expire=expire,
                         mostrecent=mostrecent,
                         parent_type='filesystem' if fs not in zvols else 'volume'
                     ))

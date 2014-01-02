@@ -552,6 +552,7 @@ class Snapshot(object):
     filesystem = None
     used = None
     refer = None
+    expire = None
     mostrecent = False
     parent_type = None
 
@@ -561,6 +562,7 @@ class Snapshot(object):
         filesystem,
         used,
         refer,
+        expire,
         mostrecent=False,
         parent_type=None
     ):
@@ -568,6 +570,7 @@ class Snapshot(object):
         self.filesystem = filesystem
         self.used = used
         self.refer = refer
+        self.expire = expire
         self.mostrecent = mostrecent
         self.parent_type = parent_type
 
