@@ -152,7 +152,7 @@ else:
 mp_to_task_map = {}
 
 # Grab all matching tasks into a tree.
-# Since the snapshot we make have the name 'foo@auto-%Y%m%d.%H%M-{expire time}'
+# Since the snapshot we make have the name 'foo@auto-%Y%m%d.%H%M'
 # format, we just keep one task.
 TaskObjects = Task.objects.filter(task_enabled=True)
 for task in TaskObjects:
@@ -174,14 +174,15 @@ if len(mp_to_task_map) == 0:
 # Grab all existing snapshot and filter out the expiring ones
 snapshots = {}
 snapshots_pending_delete = set()
-zfsproc = pipeopen("/sbin/zfs list -t snapshot -H", debug, logger=log)
+zfsproc = pipeopen("/sbin/zfs list -t snapshot -H -o name,freenas:expire", debug, logger=log)
 lines = zfsproc.communicate()[0].split('\n')
-reg_autosnap = re.compile('^auto-(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2}).(?P<hour>\d{2})(?P<minute>\d{2})-(?P<retcount>\d+)(?P<retunit>[hdwmy])$')
+# Also handle legacy 'foo@auto-%Y%m%d.%H%M-{expire time}' snapshot names
+reg_autosnap = re.compile('@auto-(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2}).(?P<hour>\d{2})(?P<minute>\d{2})(-|\t)(?P<retcount>\d+)(?P<retunit>[hdwmy])')
 for line in lines:
     if line != '':
         snapshot_name = line.split('\t')[0]
         fs, snapname = snapshot_name.split('@')
-        snapname_match = reg_autosnap.match(snapname)
+        snapname_match = reg_autosnap.search(line)
         if snapname_match != None:
             snap_infodict = snapname_match.groupdict()
             snap_ret_policy = '%s%s' % (snap_infodict['retcount'], snap_infodict['retunit'])
@@ -222,19 +223,19 @@ for mpkey, tasklist in mp_to_task_map.items():
     else:
         rflag = ''
 
-    snapname = '%s@auto-%s-%s' % (fs, snaptime_str, expire)
+    snapname = '%s@auto-%s' % (fs, snaptime_str)
 
     # If there is associated replication task, mark the snapshots as 'NEW'.
     if Replication.objects.filter(repl_filesystem=fs, repl_enabled=True).count() > 0:
         MNTLOCK.lock()
-        snapcmd = '/sbin/zfs snapshot%s -o freenas:state=NEW %s' % (rflag, snapname)
+        snapcmd = '/sbin/zfs snapshot%s -o freenas:state=NEW -o freenas:expire=%s %s' % (rflag, expire, snapname)
         proc = pipeopen(snapcmd, logger=log)
         err = proc.communicate()[1]
         if proc.returncode != 0:
             log.error("Failed to create snapshot '%s': %s", snapname, err)
         MNTLOCK.unlock()
     else:
-        snapcmd = '/sbin/zfs snapshot%s %s' % (rflag, snapname)
+        snapcmd = '/sbin/zfs snapshot%s -o freenas:expire=%s %s' % (rflag, expire, snapname)
         proc = pipeopen(snapcmd, logger=log)
         err = proc.communicate()[1]
         if proc.returncode != 0:
